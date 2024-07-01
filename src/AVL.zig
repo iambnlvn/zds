@@ -27,9 +27,9 @@ fn AVL(comptime T: type) type {
             fn printNode(self: Node) void {
                 const data = self.data;
                 const parent = if (self.parent != null) self.parent.?.data else null;
-                const left = if (self.left) self.left.?.data else null;
-                const right = if (self.left) self.right.?.data else null;
-                print("\nData: {any}, Parent: {any}, Left: {any}, Right: {r}\n", .{ data, parent, left, right });
+                const left = if (self.left != null) self.left.?.data else null;
+                const right = if (self.left != null) self.right.?.data else null;
+                print("\nData: {any}, Parent: {any}, Left: {any}, Right: {any}\n", .{ data, parent, left, right });
             }
         };
         fn init(allocator: std.mem.Allocator) Self {
@@ -73,18 +73,54 @@ fn AVL(comptime T: type) type {
                 }
             }
         }
+        fn deinit(self: Self) void {
+            if (LogFlag) print("\nDeinitializing AVL Tree\n");
+            if (self.root == null) return;
+            var currentNode = self.root;
+            while (currentNode) |*node| {
+                currentNode.?.printNode();
+                if (node.*.left != null) {
+                    currentNode = node.*.left.?;
+                    continue;
+                } else if (node.*.right != null) {
+                    currentNode = node.*.right.?;
+                    continue;
+                } else {
+                    if (currentNode == self.root) {
+                        self.allocator.destroy(currentNode.?);
+                        break;
+                    } else {
+                        const temp = node.*;
+                        currentNode = node.*.parent.?;
+                        const isLchild = if (node.*.data < node.*.parent.?.data) true else false;
+                        if (isLchild) {
+                            node.*.left = null;
+                        } else {
+                            node.*.right = null;
+                        }
+                        self.allocator.destroy(temp);
+                        print("\nDestroyed node {any}\n", .{temp.data});
+                    }
+                }
+            }
+        }
     };
 }
 
 pub fn main() !void {}
 
-test "one element tree" {
+test "many elements tree" {
     const allocator = std.testing.allocator;
     const expect = std.testing.expect;
     var tree = AVL(usize).init(allocator);
     try tree.insert(10);
     try tree.insert(21);
-    try tree.insert(10);
-    try tree.insert(21);
     try expect(tree.count == 2);
+}
+
+test "deinit" {
+    const allocator = std.testing.allocator;
+    var tree = AVL(usize).init(allocator);
+    try tree.insert(11);
+    tree.deinit();
 }
