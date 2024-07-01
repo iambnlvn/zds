@@ -37,7 +37,8 @@ fn AVL(comptime T: type) type {
         }
 
         fn createNode(self: *Self, data: T, parent: ?*Node) !*Node {
-            const newNode = (try self.*.allocator.create(Node)).*.init(data, parent);
+            const newNode = try self.*.allocator.create(Node);
+            newNode.*.init(data, parent);
             self.*.count += 1;
             return newNode;
         }
@@ -50,7 +51,7 @@ fn AVL(comptime T: type) type {
                     if (data < node.*.data) {
                         if (node.*.left == null) {
                             if (LogFlag) print("\nInserting {} at the left of {}", .{ data, node.*.data });
-                            node.*.left = try createNode(data, node.*);
+                            node.*.left = try self.createNode(data, node.*);
                             break;
                         } else {
                             currentNode = node.*.left;
@@ -59,7 +60,7 @@ fn AVL(comptime T: type) type {
                     } else if (data > node.*.data) {
                         if (node.*.right == null) {
                             if (LogFlag) print("\nInserting {} at the right of {}", .{ data, node.*.data });
-                            node.*.right = try createNode(data, node.*);
+                            node.*.right = try self.createNode(data, node.*);
                             break;
                         } else {
                             currentNode = node.*.right;
@@ -73,4 +74,17 @@ fn AVL(comptime T: type) type {
             }
         }
     };
+}
+
+pub fn main() !void {}
+
+test "one element tree" {
+    const allocator = std.testing.allocator;
+    const expect = std.testing.expect;
+    var tree = AVL(usize).init(allocator);
+    try tree.insert(10);
+    try tree.insert(21);
+    try tree.insert(10);
+    try tree.insert(21);
+    try expect(tree.count == 2);
 }
