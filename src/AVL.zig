@@ -107,7 +107,6 @@ fn AVL(comptime T: type) type {
             }
             if (LogFlag) print("\nInserted {}\n", .{data});
         }
-
         fn rotateRight(self: *Self, node: *Node) void {
             var parentNode = node.*.parent orelse null;
             const leftChild = node.*.left.?;
@@ -186,6 +185,123 @@ fn AVL(comptime T: type) type {
             }
             if (LogFlag) print("\nHeight of the tree is {}\n", .{height});
             return height;
+        }
+
+        fn find(self: Self, data: T) ?*Node {
+            var currentNode = self.root orelse {
+                if (LogFlag) print("\nEmpty tree.......", .{});
+                return null;
+            };
+
+            while (currentNode.data != data) {
+                if (data < currentNode.data) {
+                    if (currentNode.left) |left| {
+                        currentNode = left;
+                    } else {
+                        if (LogFlag) print("\nNo such Element....", .{});
+                        break;
+                    }
+                } else if (data > currentNode.data) {
+                    if (currentNode.right) |right| {
+                        currentNode = right;
+                    } else {
+                        if (LogFlag) print("\nNo such Element....", .{});
+                        break;
+                    }
+                }
+            } else {
+                if (LogFlag) print("\nTree contains {}!!\n", .{data});
+                return currentNode;
+            }
+
+            return null;
+        }
+
+        fn remove(self: *Self, data: T) void {
+            const node = self.find(data) orelse return;
+            var children: u2 = 0;
+
+            if (node.*.left != null) children += 1;
+            if (node.*.right != null) children += 1;
+
+            switch (children) {
+                0 => self.removeLeaf(node),
+                1 => self.removeChild(node),
+                2 => {
+                    const lChild = node.*.left.?;
+                    const rChild = node.*.right.?;
+                    var parentNode = node.*.parent;
+                    const successor = inOrder(node);
+                    var successorChild = successor.*.right;
+
+                    if (successor.*.parent) |*parent| {
+                        if (successor.*.data < parent.*.data) {
+                            parent.*.left = node;
+                        } else {
+                            parent.*.right = node;
+                        }
+                        node.*.parent = parent.*;
+                    }
+                    if (parentNode) |*parent| {
+                        if (node.*.data < parent.*.data) {
+                            parent.*.left = successor;
+                        } else {
+                            parent.*.right = successor;
+                        }
+                        successor.*.parent = parent.*;
+                    } else {
+                        self.root = successor;
+                        successor.*.parent = null;
+                    }
+                    successor.*.right = rChild;
+                    rChild.*.parent = successor;
+                    successor.*.left = lChild;
+                    lChild.*.parent = successor;
+
+                    if (successorChild) |*child| {
+                        child.*.parent = node;
+                        self.removeChild(node);
+                    } else self.removeLeaf(node);
+                },
+                else => unreachable,
+            }
+        }
+
+        fn removeLeaf(self: *Self, node: *const Node) void {
+            if (node.*.parent) |*parent| {
+                if (node.*.data < parent.*.data) {
+                    parent.*.left = null;
+                } else {
+                    parent.*.right = null;
+                }
+            }
+            self.*.count -= 1;
+            self.allocator.destroy(node);
+        }
+
+        fn removeChild(self: *Self, node: *const Node) void {
+            const child = node.*.left orelse node.*.right.?;
+            child.*.parent = node.*.parent;
+            if (node.*.parent) |*parent| {
+                if (node.*.data < parent.*.data) {
+                    parent.*.left = child;
+                } else {
+                    parent.*.right = child;
+                }
+            } else {
+                self.root = child;
+            }
+            self.*.count -= 1;
+            self.allocator.destroy(node);
+        }
+
+        fn inOrder(node: *const Node) *Node {
+            var currentNode = node.*.right.?;
+
+            while (currentNode.left) |left| {
+                currentNode = left;
+            }
+            return currentNode;
         }
 
         fn deinit(self: Self) void {
@@ -289,4 +405,129 @@ test "tree insertions" {
     try tree.insert(10);
     try expect(tree.count == 10);
     try expect(tree.root.?.data == 4);
+}
+test "search" {
+    const allocator = std.testing.allocator;
+    const expect = std.testing.expect;
+    var tree = AVL(usize).init(allocator);
+    defer tree.deinit();
+    try tree.insert(5);
+    try tree.insert(4);
+    try tree.insert(3);
+    try tree.insert(2);
+    try tree.insert(1);
+    try tree.insert(6);
+    try tree.insert(7);
+    try tree.insert(8);
+    try tree.insert(9);
+    try tree.insert(10);
+    try expect(tree.count == 10);
+    try expect(tree.root.?.data == 4);
+    try expect(tree.find(5).?.data == 5);
+    try expect(tree.find(4).?.data == 4);
+    try expect(tree.find(3).?.data == 3);
+    try expect(tree.find(2).?.data == 2);
+    try expect(tree.find(1).?.data == 1);
+    try expect(tree.find(6).?.data == 6);
+    try expect(tree.find(7).?.data == 7);
+    try expect(tree.find(8).?.data == 8);
+    try expect(tree.find(9).?.data == 9);
+    try expect(tree.find(10).?.data == 10);
+}
+
+test "delete leaf node" {
+    const allocator = std.testing.allocator;
+
+    var tree = AVL(usize).init(allocator);
+    defer tree.deinit();
+    try tree.insert(10);
+    try tree.insert(20);
+    try tree.insert(40);
+    try tree.insert(15);
+    try tree.insert(16);
+    try tree.insert(12);
+    try tree.insert(5);
+    try tree.insert(2);
+
+    tree.remove(2);
+
+    print("\nnumber of remaining nodes: {}\n", .{tree.count});
+}
+test "delete node with one child" {
+    const allocator = std.testing.allocator;
+
+    var tree = AVL(usize).init(allocator);
+    defer tree.deinit();
+    try tree.insert(10);
+    try tree.insert(20);
+    try tree.insert(40);
+    try tree.insert(15);
+    try tree.insert(16);
+    try tree.insert(12);
+    try tree.insert(5);
+    try tree.insert(2);
+
+    tree.remove(5);
+
+    print("\nnumber of remaining nodes: {}\n", .{tree.count});
+}
+
+test "delete node with two children" {
+    const allocator = std.testing.allocator;
+
+    var tree = AVL(usize).init(allocator);
+    defer tree.deinit();
+    try tree.insert(10);
+    try tree.insert(20);
+    try tree.insert(40);
+    try tree.insert(15);
+    try tree.insert(16);
+    try tree.insert(12);
+    try tree.insert(5);
+    try tree.insert(2);
+
+    tree.remove(15);
+
+    print("\nnumber of remaining nodes: {}\n", .{tree.count});
+}
+
+test "delete non-existent element" {
+    const allocator = std.testing.allocator;
+
+    var tree = AVL(usize).init(allocator);
+    defer tree.deinit();
+    try tree.insert(10);
+    try tree.insert(20);
+    try tree.insert(40);
+    try tree.insert(15);
+    try tree.insert(16);
+    try tree.insert(12);
+    try tree.insert(105);
+    try tree.insert(12);
+
+    tree.remove(12);
+    tree.remove(195);
+    tree.remove(105);
+
+    print("\nnumber of remaining nodes: {}\n", .{tree.count});
+}
+test "delete multiple elements" {
+    const allocator = std.testing.allocator;
+
+    var tree = AVL(usize).init(allocator);
+    defer tree.deinit();
+    try tree.insert(10);
+    try tree.insert(20);
+    try tree.insert(40);
+    try tree.insert(11);
+    try tree.insert(13);
+    try tree.insert(12);
+    try tree.insert(5);
+    try tree.insert(89);
+
+    tree.remove(15);
+    tree.remove(2);
+    tree.remove(89);
+
+    print("\nnumber of remaining nodes: {}\n", .{tree.count});
 }
