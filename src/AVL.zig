@@ -1,7 +1,7 @@
 const std = @import("std");
 const print = std.debug.print;
 
-const LogFlag = false; // controls whether to print debug logs
+const LogFlag = true; // controls whether to print debug logs
 
 fn AVL(comptime T: type) type {
     return struct {
@@ -45,6 +45,7 @@ fn AVL(comptime T: type) type {
         fn insert(self: *Self, data: T) !void {
             if (self.root == null) {
                 self.root = try self.createNode(data, null);
+                if (LogFlag) print("\nInserting {} as root\n", .{data});
             } else {
                 var currentNode = self.root;
                 while (currentNode) |*node| {
@@ -74,35 +75,24 @@ fn AVL(comptime T: type) type {
             }
         }
         fn deinit(self: Self) void {
-            if (LogFlag) print("\nDeinitializing AVL Tree\n");
-            if (self.root == null) return;
-            var currentNode = self.root;
-            while (currentNode) |*node| {
-                currentNode.?.printNode();
-                if (node.*.left != null) {
-                    currentNode = node.*.left.?;
-                    continue;
-                } else if (node.*.right != null) {
-                    currentNode = node.*.right.?;
-                    continue;
-                } else {
-                    if (currentNode == self.root) {
-                        self.allocator.destroy(currentNode.?);
-                        break;
-                    } else {
-                        const temp = node.*;
-                        currentNode = node.*.parent.?;
-                        const isLchild = if (node.*.data < node.*.parent.?.data) true else false;
-                        if (isLchild) {
-                            node.*.left = null;
-                        } else {
-                            node.*.right = null;
-                        }
-                        self.allocator.destroy(temp);
-                        print("\nDestroyed node {any}\n", .{temp.data});
-                    }
+            if (LogFlag) print("\nDeinitializing AVL Tree\n", .{});
+            self.deinitNode(self.root);
+        }
+
+        fn deinitNode(self: Self, node: ?*Node) void {
+            if (node == null) return;
+            self.deinitNode(node.?.left);
+            self.deinitNode(node.?.right);
+            if (node.?.parent != null) {
+                const p = node.?.parent.?;
+                if (p.left == node) {
+                    p.left = null;
+                } else if (p.right == node) {
+                    p.right = null;
                 }
             }
+            print("\nDestroying node {any}\n", .{node.?.data});
+            self.allocator.destroy(node.?);
         }
     };
 }
@@ -110,6 +100,7 @@ fn AVL(comptime T: type) type {
 pub fn main() !void {}
 
 test "many elements tree" {
+    //this will create a memory leak as no deinitalization is done
     const allocator = std.testing.allocator;
     const expect = std.testing.expect;
     var tree = AVL(usize).init(allocator);
@@ -123,4 +114,18 @@ test "deinit" {
     var tree = AVL(usize).init(allocator);
     try tree.insert(11);
     tree.deinit();
+}
+test "insert" {
+    const allocator = std.testing.allocator;
+    const expect = std.testing.expect;
+    var tree = AVL(usize).init(allocator);
+    defer tree.deinit();
+    try tree.insert(13);
+    try tree.insert(12);
+    try tree.insert(9);
+    try tree.insert(2);
+    try tree.insert(2002);
+    try tree.insert(11);
+    try tree.insert(1);
+    try expect(tree.count == 7);
 }
