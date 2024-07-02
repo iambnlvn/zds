@@ -1,7 +1,6 @@
 const std = @import("std");
 const print = std.debug.print;
-
-const LogFlag = true; // controls whether to print debug logs
+const LogFlag = false; // controls whether to print debug logs
 
 fn AVL(comptime T: type) type {
     return struct {
@@ -72,8 +71,123 @@ fn AVL(comptime T: type) type {
                         break;
                     }
                 }
+                while (currentNode != null) {
+                    const balanceFactor = getHeight(currentNode.?.left) - getHeight(currentNode.?.right);
+                    const absBalanceFactor = if (balanceFactor < 0) -1 * balanceFactor else balanceFactor;
+                    const parent = currentNode.?.parent;
+                    if (balanceFactor > 0) {
+                        if (absBalanceFactor == 1) {
+                            currentNode.?.balance = .left;
+                        } else {
+                            const leftChild = currentNode.?.left.?;
+                            if (data < leftChild.data) {
+                                self.rotateRight(currentNode.?);
+                            } else {
+                                self.rotateLeft(leftChild);
+                                self.rotateRight(currentNode.?);
+                            }
+                        }
+                    } else if (balanceFactor < 0) {
+                        if (absBalanceFactor == 1) {
+                            currentNode.?.balance = .right;
+                        } else {
+                            const rightChild = currentNode.?.right.?;
+                            if (data > rightChild.data) {
+                                self.rotateLeft(currentNode.?);
+                            } else {
+                                self.rotateRight(rightChild);
+                                self.rotateLeft(currentNode.?);
+                            }
+                        }
+                    } else {
+                        currentNode.?.balance = .balanced;
+                    }
+                    currentNode = parent;
+                }
             }
+            if (LogFlag) print("\nInserted {}\n", .{data});
         }
+
+        fn rotateRight(self: *Self, node: *Node) void {
+            var parentNode = node.*.parent orelse null;
+            const leftChild = node.*.left.?;
+            node.*.parent = leftChild;
+            leftChild.*.parent = parentNode;
+
+            if (leftChild.*.right) |rightChild| {
+                node.*.left = rightChild;
+                rightChild.*.parent = node;
+            } else {
+                node.*.left = null;
+            }
+
+            leftChild.*.right = node;
+            if (parentNode) |*parent| {
+                if (leftChild.*.data > parent.*.data) {
+                    parent.*.right = leftChild;
+                } else {
+                    parent.*.left = leftChild;
+                }
+            } else {
+                self.root = leftChild;
+            }
+            leftChild.*.balance = .balanced;
+            node.*.balance = .balanced;
+        }
+
+        fn rotateLeft(self: *Self, node: *Node) void {
+            var parentNode = node.*.parent orelse null;
+            const rightChild = node.*.right.?;
+            node.*.parent = rightChild;
+            rightChild.*.parent = parentNode;
+
+            if (rightChild.*.left) |leftChild| {
+                node.*.right = leftChild;
+                leftChild.*.parent = node;
+            } else {
+                node.*.right = null;
+            }
+            rightChild.*.left = node;
+            if (parentNode) |*parent| {
+                if (rightChild.*.data < parent.*.data) {
+                    parent.*.left = rightChild;
+                } else {
+                    parent.*.right = rightChild;
+                }
+            } else {
+                self.root = rightChild;
+            }
+            rightChild.*.balance = .balanced;
+            node.*.balance = .balanced;
+        }
+
+        fn getHeight(node: ?*const Node) isize {
+            var currentNode = node orelse return -1;
+            var height: isize = 0;
+            while (currentNode.*.left != null or currentNode.*.right != null) {
+                switch (currentNode.*.balance) {
+                    .left => {
+                        currentNode = currentNode.*.left.?;
+                        height += 1;
+                    },
+                    .right => {
+                        currentNode = currentNode.*.right.?;
+                        height += 1;
+                    },
+                    //traversing down the right subtree (if it exists) is necessary to maintain
+                    //the binary search tree properties during insertion, deletion, and search operations
+                    //and to ensure the AVL tree remains balanced after these operations.
+                    .balanced => {
+                        if (currentNode.*.right == null) break;
+                        currentNode = currentNode.*.right.?;
+                        height += 1;
+                    },
+                }
+            }
+            if (LogFlag) print("\nHeight of the tree is {}\n", .{height});
+            return height;
+        }
+
         fn deinit(self: Self) void {
             if (LogFlag) print("\nDeinitializing AVL Tree\n", .{});
             self.deinitNode(self.root);
@@ -91,7 +205,7 @@ fn AVL(comptime T: type) type {
                     p.right = null;
                 }
             }
-            print("\nDestroying node {any}\n", .{node.?.data});
+            if (LogFlag) print("\nDestroying node {any}\n", .{node.?.data});
             self.allocator.destroy(node.?);
         }
     };
@@ -128,4 +242,51 @@ test "insert" {
     try tree.insert(11);
     try tree.insert(1);
     try expect(tree.count == 7);
+}
+
+test "insert with rotateRight trigger" {
+    const allocator = std.testing.allocator;
+    const expect = std.testing.expect;
+    var tree = AVL(usize).init(allocator);
+    defer tree.deinit();
+    try tree.insert(5);
+    try tree.insert(7);
+    try tree.insert(8);
+    try tree.insert(9);
+    try tree.insert(10);
+    try expect(tree.count == 5);
+    print("\nRoot: {any}\n", .{tree.root.?.data});
+    try expect(tree.root.?.data == 7);
+}
+
+test "insert with rotateLeft trigger" {
+    const allocator = std.testing.allocator;
+    const expect = std.testing.expect;
+    var tree = AVL(usize).init(allocator);
+    defer tree.deinit();
+    try tree.insert(5);
+    try tree.insert(3);
+    try tree.insert(2);
+    try tree.insert(1);
+    try expect(tree.count == 4);
+    try expect(tree.root.?.data == 3);
+}
+
+test "tree insertions" {
+    const allocator = std.testing.allocator;
+    const expect = std.testing.expect;
+    var tree = AVL(usize).init(allocator);
+    defer tree.deinit();
+    try tree.insert(5);
+    try tree.insert(4);
+    try tree.insert(3);
+    try tree.insert(2);
+    try tree.insert(1);
+    try tree.insert(6);
+    try tree.insert(7);
+    try tree.insert(8);
+    try tree.insert(9);
+    try tree.insert(10);
+    try expect(tree.count == 10);
+    try expect(tree.root.?.data == 4);
 }
