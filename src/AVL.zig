@@ -28,7 +28,7 @@ fn AVL(comptime T: type) type {
                 const data = self.data;
                 const parent = if (self.parent != null) self.parent.?.data else null;
                 const left = if (self.left != null) self.left.?.data else null;
-                const right = if (self.left != null) self.right.?.data else null;
+                const right = if (self.right != null) self.right.?.data else null;
                 print("\nData: {any}, Parent: {any}, Left: {any}, Right: {any}\n", .{ data, parent, left, right });
             }
         };
