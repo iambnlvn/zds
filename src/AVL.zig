@@ -214,10 +214,10 @@ fn AVL(comptime T: type) type {
 pub fn main() !void {}
 
 test "many elements tree" {
-    //this will create a memory leak as no deinitalization is done
     const allocator = std.testing.allocator;
     const expect = std.testing.expect;
     var tree = AVL(usize).init(allocator);
+    defer tree.deinit();
     try tree.insert(10);
     try tree.insert(21);
     try expect(tree.count == 2);
